@@ -7,9 +7,10 @@ using namespace std;
 HWND hwnd = GetConsoleWindow();
 HDC dc = GetDC(hwnd);
 float playerX, playerY; // Координаты игрока
-int enemyX = 150 + 11 * 64, enemyY = 50 + 3 * 64;
-int enemyHealth = 100;
+float enemyX = 150 + 11 * 64, enemyY = 50 + 3 * 64;
+int enemyHealth = 500;
 int damage = 50;
+int playerHealth = 100;
 
 
 /* Счетчики выстрелов */
@@ -43,8 +44,40 @@ void drawEnemy() {
 	Polygon(dc, lookDown, 5);
 }
 
+void enemyFireAction(unsigned short int prevEnemyDir, int& enemyReload) {
+	switch (prevEnemyDir) {
+	case 0: {
+		upFiresX.push_back(enemyY - 54.f);
+		upFiresY.push_back(enemyX - 6.f);
+		enemyReload = 15;
+		break;
+	}
+	case 1: {
+		rightFiresY.push_back(enemyY - 6);
+		rightFiresX.push_back(enemyX + 32);
+		enemyReload = 15;
+		break;
+	}
+	case 2: {
+
+		leftFiresY.push_back(enemyY - 6);
+		leftFiresX.push_back(enemyX - 54);
+		enemyReload = 15;
+		break;
+	}
+	case 3: {
+		downFiresY.push_back(enemyY + 32);
+		downFiresX.push_back(enemyX - 6);
+		enemyReload = 15;
+		break;
+	}
+	default:
+		break;
+	}
+}
+
 void enemyCollisionCheckEvent(int dir, bool& canGo) {
-	int dPlayerX, dPlayerY;
+	float dPlayerX, dPlayerY;
 	switch (dir) {	//Коллизия
 	case 0: {
 		dPlayerX = enemyX;
@@ -224,14 +257,17 @@ void enemyCollisionCheckEvent(int dir, bool& canGo) {
 	}
 }
 
-void enemyControl(const HBRUSH& bgBrush, const HBRUSH& playerBrush, unsigned short int& prevEnemyDir, int& enemyTimer) { // Каждые несколько итераций противник выбирает, в каком направление двигаться
+void enemyControl(const HBRUSH& bgBrush, const HBRUSH& playerBrush, unsigned short int& prevEnemyDir, int& enemyTimer, int& enemyReload) { // Каждые несколько итераций противник выбирает, в каком направление двигаться
+	int fire = 1;
+	if (enemyReload < 2) {
+		enemyFireAction(prevEnemyDir, enemyReload);
+	}
 	float dx = 0, dy = 0; // Передвижение игрока
 	POINT lookUp[5] = { {enemyX, enemyY - 32}, {enemyX + 32, enemyY}, {enemyX + 32, enemyY + 32}, {enemyX - 32, enemyY + 32}, {enemyX - 32, enemyY} };
 	POINT lookRight[5] = { {enemyX + 32, enemyY}, {enemyX, enemyY + 32}, {enemyX - 32, enemyY + 32}, {enemyX - 32, enemyY - 32}, {enemyX, enemyY - 32} }; 
 	POINT lookLeft[5] = { {enemyX - 32, enemyY}, {enemyX, enemyY - 32}, {enemyX + 32, enemyY - 32}, {enemyX + 32, enemyY + 32}, {enemyX, enemyY + 32} };
 	POINT lookDown[5] = { {enemyX, enemyY + 32}, {enemyX - 32, enemyY}, {enemyX - 32, enemyY - 32}, {enemyX + 32, enemyY - 32}, {enemyX + 32, enemyY} };
 	
-
 	int randDir = prevEnemyDir;
 	/* Если таймер закончился, то выполняется условие и генерируется новое направление движения врага */
 	if (enemyTimer <= 2) {
@@ -321,6 +357,7 @@ void enemyControl(const HBRUSH& bgBrush, const HBRUSH& playerBrush, unsigned sho
 	}
 	else
 		enemyTimer = 2;
+
 }
 
 
@@ -348,7 +385,7 @@ void fireAction(unsigned short int prevLookDirection, int& fireTimer) {
 		break;
 
 	case 3:
-		downFiresY.push_back(playerY+32);
+		downFiresY.push_back(playerY + 32);
 		downFiresX.push_back(playerX - 6);
 		fireTimer = 15;
 		break;
@@ -382,7 +419,7 @@ void removeWall(int x, int y, int i) {
 
 /* Коллизия выстрелов */
 bool shotsCollision(int i, vector<float> fireDirectionX, vector<float> fireDirectionY){
-	int dFireX, dFireY;
+	float dFireX, dFireY;
 	if (fireDirectionX == upFiresX && fireDirectionY == upFiresY) {
 		dFireX = fireDirectionX[i];
 		dFireY = fireDirectionY[i] - 20;
@@ -392,7 +429,10 @@ bool shotsCollision(int i, vector<float> fireDirectionX, vector<float> fireDirec
 			enemyHealth -= damage;
 			return false;
 		}
-
+		if ((dFireX >= playerX - 32 && dFireX <= playerX + 32) && (dFireY <= playerY + 32 && dFireY >= playerY - 32)) {
+			playerHealth -= damage;
+			return false;
+		}
 		for (int j = 0; j < blocksXCoord.size(); j++) {
 			if ((dFireX >= blocksXCoord[j] && dFireX <= blocksXCoord[j] + 64) && (dFireY < blocksYCoord[j] + 64 && dFireY > blocksYCoord[j])) { // Если сталкивается
 				return false;
@@ -413,6 +453,10 @@ bool shotsCollision(int i, vector<float> fireDirectionX, vector<float> fireDirec
 		/* проверка на попадание в противника */
 		if ((dFireX >= enemyX - 32 && dFireX <= enemyX + 32) && (dFireY <= enemyY + 32 && dFireY >= enemyY - 32)) {
 			enemyHealth -= damage;
+			return false;
+		}
+		if ((dFireX >= playerX - 32 && dFireX <= playerX + 32) && (dFireY <= playerY + 32 && dFireY >= playerY - 32)) {
+			playerHealth -= damage;
 			return false;
 		}
 		
@@ -438,6 +482,10 @@ bool shotsCollision(int i, vector<float> fireDirectionX, vector<float> fireDirec
 			enemyHealth -= damage;
 			return false;
 		}
+		if ((dFireX >= playerX - 32 && dFireX <= playerX + 32) && (dFireY <= playerY + 32 && dFireY >= playerY - 32)) {
+			playerHealth -= damage;
+			return false;
+		}
 
 		for (int i = 0; i < blocksXCoord.size(); i++) {
 			if (dFireY <= blocksYCoord[i] + 64 && dFireY >= blocksYCoord[i] && dFireX <= blocksXCoord[i] + 64 && dFireX >= blocksXCoord[i]) {
@@ -461,6 +509,10 @@ bool shotsCollision(int i, vector<float> fireDirectionX, vector<float> fireDirec
 			enemyHealth -= damage;
 			return false;
 		}
+		if ((dFireX >= playerX - 32 && dFireX <= playerX + 32) && (dFireY <= playerY + 32 && dFireY >= playerY - 32)) {
+			playerHealth -= damage;
+			return false;
+		}
 
 		for (int i = 0; i < blocksXCoord.size(); i++){
 			if ((dFireX >= blocksXCoord[i] && dFireX <= blocksXCoord[i] + 64) && (dFireY < blocksYCoord[i] + 64 && dFireY > blocksYCoord[i])) {
@@ -475,11 +527,11 @@ bool shotsCollision(int i, vector<float> fireDirectionX, vector<float> fireDirec
 		}
 		return true;
 	}
+	return false;
 }
 
 /* Изменение координат каждого выстрела и отсчет времени перезарядки */
-void shotsMoving(const HBRUSH& mainFieldBgBrush, const HBRUSH& ballBrush, int& fireTimer) {
-	bool canBulletGo;
+void shotsMoving(const HBRUSH& mainFieldBgBrush, const HBRUSH& ballBrush) {
 	
 	/* обновление местоположения снаряда с каждой итерацией */
 	for (int i = 0; i < upFiresY.size(); i++) {
@@ -501,6 +553,8 @@ void shotsMoving(const HBRUSH& mainFieldBgBrush, const HBRUSH& ballBrush, int& f
 			Sleep(15);
 			SelectObject(dc, mainFieldBgBrush);
 			Ellipse(dc, upFiresX[i] -1, upFiresY[i] -1, upFiresX[i] + 25, upFiresY[i] + 25);
+			upFiresX[i] = NULL;
+			upFiresY[i] = NULL;
 			upFiresX.erase(upFiresX.begin() + i, upFiresX.begin() + i + 1);
 			upFiresY.erase(upFiresY.begin() + i, upFiresY.begin() + i + 1);
 		}
@@ -524,6 +578,8 @@ void shotsMoving(const HBRUSH& mainFieldBgBrush, const HBRUSH& ballBrush, int& f
 			Sleep(15);
 			SelectObject(dc, mainFieldBgBrush);
 			Ellipse(dc, rightFiresX[i] - 1, rightFiresY[i] - 1, rightFiresX[i] + 25, rightFiresY[i] + 25);
+			rightFiresX[i] = NULL;
+			rightFiresY[i] = NULL;
 			rightFiresX.erase(rightFiresX.begin() + i, rightFiresX.begin() + i + 1);
 			rightFiresY.erase(rightFiresY.begin() + i, rightFiresY.begin() + i + 1);
 		}
@@ -547,6 +603,8 @@ void shotsMoving(const HBRUSH& mainFieldBgBrush, const HBRUSH& ballBrush, int& f
 			Sleep(15);
 			SelectObject(dc, mainFieldBgBrush);
 			Ellipse(dc, leftFiresX[i] - 1, leftFiresY[i] - 1, leftFiresX[i] + 25, leftFiresY[i] + 25);
+			leftFiresX[i] = NULL;
+			leftFiresY[i] = NULL;
 			leftFiresX.erase(leftFiresX.begin() + i, leftFiresX.begin() + i + 1);
 			leftFiresY.erase(leftFiresY.begin() + i, leftFiresY.begin() + i + 1);
 		}
@@ -570,14 +628,11 @@ void shotsMoving(const HBRUSH& mainFieldBgBrush, const HBRUSH& ballBrush, int& f
 			Sleep(15);
 			SelectObject(dc, mainFieldBgBrush);
 			Ellipse(dc, downFiresX[i] - 1, downFiresY[i] - 1, downFiresX[i] + 25, downFiresY[i] + 25);
+			downFiresX[i] = NULL;
+			downFiresY[i] = NULL;
 			downFiresX.erase(downFiresX.begin() + i, downFiresX.begin() + i + 1);
 			downFiresY.erase(downFiresY.begin() + i, downFiresY.begin() + i + 1);
 		}
-	}
-
-	/* Перезарядка орудия */
-	if (fireTimer > -2) {
-		fireTimer--;
 	}
 }
 
@@ -674,7 +729,7 @@ void drawObjects() {
 
 /* Провека, сталкивается ли подвижный объект с неподвижными */
 void collisionCheckEvent(char c, bool &canGo) {
-	int dPlayerX, dPlayerY;
+	float dPlayerX, dPlayerY;
 	switch (c) {	//Коллизия
 	case 'w': {
 		dPlayerX = playerX;
@@ -992,6 +1047,7 @@ int main() {
 	drawEnemy();
 	unsigned short int prevEnemyDir = 3;
 	int enemyTimer = 40;
+	int enemyReload = 0;
 	while(true){
 		
 		/* Обработка нажатия клавиши движения и стрельбы */
@@ -1005,28 +1061,38 @@ int main() {
 			}
 		}
 
-		/* Изменение координат каждого выстрела и отсчет времени перезарядки */
-		shotsMoving(mainFieldBgBrush, ballBrush, fireTimer);
-		
 		// Уничтожение врага
 		if (enemyHealth <= 0) {
 			SelectObject(dc, mainFieldBgBrush);
 			Rectangle(dc, enemyX - 32, enemyY - 32, enemyX + 32, enemyY + 32);
 			enemyX = -100;
 			enemyY = -100;
+			break;
 		}
 		else {
 			enemyTimer--;
 			if (enemyTimer < 1) {
 				enemyTimer = 40;
 			}
-			enemyControl(mainFieldBgBrush, playerBrush, prevEnemyDir, enemyTimer);
+			enemyControl(mainFieldBgBrush, playerBrush, prevEnemyDir, enemyTimer, enemyReload);
 		}
 
-
+		/* Изменение координат каждого выстрела и отсчет времени перезарядки */
+		shotsMoving(mainFieldBgBrush, ballBrush);
+		/* Перезарядка орудия */
+		if (fireTimer > -2) {
+			fireTimer--;
+		}
+		if (enemyReload > -2) {
+			enemyReload--;
+		}
+		if (playerHealth < 1) {
+			break;
+		}
 		/* Счетчик фпс(30fps) */
 		Sleep(1000 / 30);
 	}
+	cout << "End game";
 
 	return 0;
 }
